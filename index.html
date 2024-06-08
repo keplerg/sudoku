@@ -33,51 +33,52 @@
         Solve: <button type="button" class="js-solve-step-btn">One Step</button><button type="button" class="js-solve-all-btn">All</button>
         <br>
         <!--clear board btn-->
-        Board: <button type="button" class="js-reset-board-btn">Reset</button><button type="button" class="js-clear-board-btn">Clear</button>
+        Board: <button type="button" class="js-reset-board-btn">Reset</button><button type="button" class="js-clear-board-btn">Clear</button><button type="button" class="js-undo-btn">Undo</button>
     </div>
 
-	  <script>
-		    var	$candidateToggle = $(".js-candidate-toggle"),
+    <script>
+        var  $candidateToggle = $(".js-candidate-toggle"),
         $analyzeBoardBtn = $(".js-analyze-board-btn"),
-			  $generateBoardBtnEasy = $(".js-generate-board-btn--easy"),
-			  $generateBoardBtnMedium = $(".js-generate-board-btn--medium"),
-			  $generateBoardBtnHard = $(".js-generate-board-btn--hard"),
-			  $generateBoardBtnVeryHard = $(".js-generate-board-btn--very-hard"),
+        $generateBoardBtnEasy = $(".js-generate-board-btn--easy"),
+        $generateBoardBtnMedium = $(".js-generate-board-btn--medium"),
+        $generateBoardBtnHard = $(".js-generate-board-btn--hard"),
+        $generateBoardBtnVeryHard = $(".js-generate-board-btn--very-hard"),
 
-			  $solveStepBtn = $(".js-solve-step-btn"),
-			  $solveAllBtn = $(".js-solve-all-btn"),
-			  $resetBoardBtn = $(".js-reset-board-btn"),
-			  $clearBoardBtn = $(".js-clear-board-btn"),
+        $solveStepBtn = $(".js-solve-step-btn"),
+        $solveAllBtn = $(".js-solve-all-btn"),
+        $resetBoardBtn = $(".js-reset-board-btn"),
+        $clearBoardBtn = $(".js-clear-board-btn"),
+        $undoBtn = $(".js-undo-btn"),
     
-			  mySudokuJS = $("#sudoku").sudokuJS({
-				    difficulty: "very hard"
-				    //change state of our candidate showing checkbox on change in sudokuJS
-				    ,candidateShowToggleFn : function(showing){
-					  $candidateToggle.prop("checked", showing);
-				    }
-			  });
+        mySudokuJS = $("#sudoku").sudokuJS({
+            difficulty: "medium"
+            //change state of our candidate showing checkbox on change in sudokuJS
+            ,candidateShowToggleFn : function(showing){
+            $candidateToggle.prop("checked", showing);
+            }
+        });
 
-		    $solveStepBtn.on("click", mySudokuJS.solveStep);
-		    $solveAllBtn.on("click", mySudokuJS.solveAll);
-		    $resetBoardBtn.on("click", mySudokuJS.resetBoard);
-		    $clearBoardBtn.on("click", mySudokuJS.clearBoard);
+        $solveStepBtn.on("click", mySudokuJS.solveStep);
+        $solveAllBtn.on("click", mySudokuJS.solveAll);
+        $resetBoardBtn.on("click", mySudokuJS.resetBoard);
+        $clearBoardBtn.on("click", mySudokuJS.clearBoard);
+        $undoBtn.on("click", mySudokuJS.undo);
     
-		    $generateBoardBtnEasy.on("click", function(){
-			      mySudokuJS.generateBoard("easy");
-		    });
-		    $generateBoardBtnMedium.on("click", function(){
-			      mySudokuJS.generateBoard("medium");
-		    });
-		    $generateBoardBtnHard.on("click", function(){
-			      mySudokuJS.generateBoard("hard");
-		    });
-		    $generateBoardBtnVeryHard.on("click", function(){
-			      mySudokuJS.generateBoard("very hard");
-		    });
+        $generateBoardBtnEasy.on("click", function(){
+            mySudokuJS.generateBoard("easy");
+        });
+        $generateBoardBtnMedium.on("click", function(){
+            mySudokuJS.generateBoard("medium");
+        });
+        $generateBoardBtnHard.on("click", function(){
+            mySudokuJS.generateBoard("hard");
+        });
+        $generateBoardBtnVeryHard.on("click", function(){
+            mySudokuJS.generateBoard("very hard");
+        });
 
         $analyzeBoardBtn.on("click", function(){
             var data = mySudokuJS.analyzeBoard();
-
             var msg = "";
             if(data.error){
                 msg = "This board can not be solved because it is incorrect.";
@@ -97,69 +98,6 @@
             alert(msg);
         });
 
-		    $candidateToggle.on("change", function(){
-			      if($candidateToggle.is(":checked"))
-				        mySudokuJS.showCandidates();
-			      else
-				        mySudokuJS.hideCandidates();
-		    });
-		    $candidateToggle.trigger("change");
-	  </script>
-    <!-- script>
-        var board = [
-             , , ,4, ,8, ,2,9,
-             , , , , , , , ,4,
-            8,5, , ,2, , , ,7,
-             , ,8,3,7,4,2, , ,
-             ,2, , , , , , , ,
-             , ,3,2,6,1,7, , ,
-             , , , ,9,3,6,1,2,
-            2, , , , , ,4, ,3,
-            1,3, ,6,4,2, ,7, ,
-        ],
-            //NOTE: if last cell of board is empty 'undefined' has to be used as value!
-
-            $candidateToggle = $(".js-candidate-toggle"),
-            $analyzeBoardBtn = $(".js-analyze-board-btn"),
-
-            $solveStepBtn = $(".js-solve-step-btn"),
-            $solveAllBtn = $(".js-solve-all-btn"),
-            $clearBoardBtn = $(".js-clear-board-btn"),
-
-            mySudokuJS = $("#sudoku").sudokuJS({
-                board: board
-                //change state of our candidate showing checkbox on change in sudokuJS
-                ,candidateShowToggleFn : function(showing){
-                    $candidateToggle.prop("checked", showing);
-                }
-            });
-
-        $solveStepBtn.on("click", mySudokuJS.solveStep);
-        $solveAllBtn.on("click", mySudokuJS.solveAll);
-        $clearBoardBtn.on("click", mySudokuJS.clearBoard);
-
-        $analyzeBoardBtn.on("click", function(){
-            var data = mySudokuJS.analyzeBoard();
-
-            var msg = "";
-            if(data.error){
-                msg = "This board can not be solved because it is incorrect.";
-            }
-            else if (data.finished === false) {
-                msg = "Woah! \n"
-                    +"Tough board you got there!\n"
-                    +"\nThis board requires very advanced strategies to solve, more advanced than the ones this solver uses. Or possibly, it can't even be solved.\n"
-                    +"\nRank: Evil";
-            } else {
-                msg = "Rank: "+data.level +"\n";
-                msg += "\nThis board requires use of the following strategies: \n\n";
-                for (var i=0; i < data.usedStrategies.length; i++){
-                    msg += "\t-"+data.usedStrategies[i].title+"\n";
-                }
-            }
-            window.alert(msg);
-        });
-
         $candidateToggle.on("change", function(){
             if($candidateToggle.is(":checked"))
                 mySudokuJS.showCandidates();
@@ -167,6 +105,6 @@
                 mySudokuJS.hideCandidates();
         });
         $candidateToggle.trigger("change");
-    </script -->
+    </script>
     </body>
 </html>
