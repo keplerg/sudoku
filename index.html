@@ -33,7 +33,7 @@
         Solve: <button type="button" class="js-solve-step-btn">One Step</button><button type="button" class="js-solve-all-btn">All</button>
         <br>
         <!--clear board btn-->
-        Board: <button type="button" class="js-reset-board-btn">Reset</button><button type="button" class="js-clear-board-btn">Clear</button><button type="button" class="js-undo-btn">Undo</button>
+        Board: <button type="button" class="js-reset-board-btn">Reset</button><button type="button" class="js-clear-board-btn">Clear</button><button type="button" class="js-set-board-btn">Set</button><button type="button" class="js-undo-btn">Undo</button>
     </div>
 
     <script>
@@ -48,6 +48,7 @@
         $solveAllBtn = $(".js-solve-all-btn"),
         $resetBoardBtn = $(".js-reset-board-btn"),
         $clearBoardBtn = $(".js-clear-board-btn"),
+        $setBoardBtn = $(".js-set-board-btn"),
         $undoBtn = $(".js-undo-btn"),
     
         mySudokuJS = $("#sudoku").sudokuJS({
@@ -62,6 +63,7 @@
         $solveAllBtn.on("click", mySudokuJS.solveAll);
         $resetBoardBtn.on("click", mySudokuJS.resetBoard);
         $clearBoardBtn.on("click", mySudokuJS.clearBoard);
+        $setBoardBtn.on("click", mySudokuJS.setBoard);
         $undoBtn.on("click", mySudokuJS.undo);
     
         $generateBoardBtnEasy.on("click", function(){

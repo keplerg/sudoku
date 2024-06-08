@@ -626,6 +626,40 @@
         };
 
 
+        /* setBoard
+        -----------------------------------------------------------------*/
+        var setBoard = function() {
+            resetBoardVariables();
+            history = [];
+            log('cleared history');
+
+            //reset UI
+            $boardInputs
+                .removeClass("highlight-val")
+                .removeClass("board-cell-error")
+                .removeAttr("disabled")
+                .val("");
+
+            //reset board variable
+            log(board);
+            for (let i=0; i < boardSize*boardSize; i++) {
+                originalBoard[i] = {
+                    val: board[i].val,
+                    candidates: [...board[i].candidates], // need to clone array
+                    title: board[i].title
+                };
+                if (board[i].val !== null) {
+                    $('#input-'+i).attr('disabled', true);
+                } else {
+                    $('#input-'+i).attr('disabled', false);
+                }
+                // $("#input-"+i+"-candidates").html(buildCandidatesString(board[i].candidates));
+            }
+
+            updateUIBoard(false);
+        };
+
+
         /* undo
          * -----------------------------------------------------------------*/
         var undo = function() {
@@ -1970,7 +2004,7 @@
             let $this = $(this);
             let id = parseInt($this.attr("id").replace("input-",""));
             //allow keyboard movements
-            if (e.keyCode >=37 && e.keyCode <= 40) {// || e.keyCode ===48){
+            if (e.keyCode < 48) {
                 keyboardMoveBoardFocus(id, e.keyCode);
             } else {
                 let $inputs = $('#sudoku').find('input').not(':disabled');
@@ -2042,18 +2076,11 @@
             return originalBoard;
         };
 
-        var setBoard = function(newBoard) {
-            clearBoard(); // if any pre-existing
-            board = newBoard;
-            initBoard();
-            visualEliminationOfCandidates();
-            updateUIBoard(false);
-        };
-
         var hideCandidates = function() {
             $board.removeClass("showCandidates");
             candidatesShowing = false;
         };
+
         var showCandidates = function() {
             $board.addClass("showCandidates");
             candidatesShowing = true;
@@ -2069,10 +2096,10 @@
             analyzeBoard : analyzeBoard,
             resetBoard : resetBoard,
             clearBoard : clearBoard,
+            setBoard : setBoard,
             undo : undo,
             getBoard : getBoard,
             getOriginalBoard : getOriginalBoard,
-            setBoard : setBoard,
             hideCandidates : hideCandidates,
             showCandidates : showCandidates,
             setEditingCandidates: setEditingCandidates,
