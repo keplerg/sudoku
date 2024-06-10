@@ -12,7 +12,6 @@
     /*TODO:
         --possible additions--
         toggle edit candidates
-        undo/redo
     */
 
     /**
@@ -81,14 +80,6 @@
 
         //nr of times each strategy has been used for solving this board - used to calculate difficulty score
             usedStrategies = [],
-
-        /*board variable gets enhanced into list of objects on init:
-            ,{
-                val: null
-                ,candidates: [
-                    ]
-            }
-        */
             originalBoard = [],
             board = [],
             boardSize,
@@ -96,12 +87,9 @@
 
         //indexes of cells in each house - generated on the fly based on boardSize
             houses = [
-                //hor. rows
-                [],
-                //vert. rows
-                [],
-                //boxes
-                []
+                [], //hor. rows
+                [], //vert. rows
+                []  //boxes
             ];
 
 
@@ -209,12 +197,9 @@
         var generateHouseIndexList = function() {
         // reset houses
         houses = [
-                //hor. rows
-                [],
-                //vert. rows
-                [],
-                //boxes
-                []
+                [], //hor. rows
+                [], //vert. rows
+                []  //boxes
             ]
             let boxSideSize = Math.sqrt(boardSize);
 
@@ -351,16 +336,6 @@
             return s;
         };
 
-
-        /* updateUI
-         * --------------
-         *  updates the UI
-         * -----------------------------------------------------------------
-        var updateUI = function(opts) {
-            let opts = opts || {};
-            let paintNew = (typeof opts.paintNew !== "undefined") ? opts.paintNew : true;
-            updateUIBoard(paintNew);
-        }*/
 
         /* updateUIBoard -
          * --------------
@@ -565,7 +540,7 @@
         var resetBoard = function() {
             resetBoardVariables();
             history = [];
-            log('cleared history');
+            // log('cleared history');
 
             //reset UI
             $boardInputs
@@ -631,7 +606,7 @@
         var setBoard = function() {
             resetBoardVariables();
             history = [];
-            log('cleared history');
+            // log('cleared history');
 
             //reset UI
             $boardInputs
@@ -641,7 +616,7 @@
                 .val("");
 
             //reset board variable
-            log(board);
+            // log(board);
             for (let i=0; i < boardSize*boardSize; i++) {
                 originalBoard[i] = {
                     val: board[i].val,
@@ -665,14 +640,19 @@
         var undo = function() {
             let entry = history.pop();
             if (! entry) {
-                log('no undo history left');
+                // log('no undo history left');
                 return;
             }
-            log(entry);
+            // log(entry);
             setBoardCell(entry.cell, entry.oldVal);
             visualEliminationOfCandidates();
             if (entry.val !== null) {
                 addCandidateBackToCells(entry.cell, entry.val);
+            }
+            if (entry.error) {
+                checkCellError(entry.cell, entry.oldVal, true);
+            } else {
+                checkCellError(entry.cell, entry.val, false);
             }
             updateUIBoard(true);
         };
@@ -823,6 +803,40 @@
             }
             return t;
         };
+
+
+         /* checkCellError
+         * --------------
+         *  checks if cell entry invalidates the board
+         * -----------------------------------------------------------------*/
+         var checkCellError = function(id, val, mark) {
+            //check that this doesn't make board incorrect
+            let status = $("#input-" + id).hasClass("board-cell-error");
+            let temp = housesWithCell(id);
+            //for each type of house
+            for (let i=0; i < houses.length; i++) {
+
+                if (indexInHouse(val, houses[i][temp[i]]) !== false) {
+                    //digit already in house - board incorrect with user input
+                    // log("board incorrect!");
+                    let alreadyExistingCellInHouseWithDigit = houses[i][temp[i]][indexInHouse(val, houses[i][temp[i]])];
+
+                    //this happens in candidate mode, if we highlight on ui board before entering value, and user then enters before us.
+                    if (mark && alreadyExistingCellInHouseWithDigit == id) {
+                        continue;
+                    }
+
+                    if (mark) {
+                        $("#input-" + alreadyExistingCellInHouseWithDigit + ", #input-"+id)
+                            .addClass("board-cell-error");
+                    } else {
+                        $("#input-" + alreadyExistingCellInHouseWithDigit + ", #input-"+id)
+                            .removeClass("board-cell-error");
+                    }
+                }
+            }
+            return status;
+        }
 
 
         /* visualEliminationOfCandidates
@@ -1525,9 +1539,9 @@
                     for (let j=0; j < affectedCells.length; j++) {
                         if (boardError) {
                             // add entry to history
-                            let historyEntry = {'cell': affectedCells[j], 'oldVal': null, 'val': board[affectedCells[j]].val};
+                            let historyEntry = {'cell': affectedCells[j], 'error': false, 'oldVal': null, 'val': board[affectedCells[j]].val};
                             history.push(historyEntry);
-                            log(history);
+                            // log(history);
                         }
 
                         updateUIBoardCell(affectedCells[j]);
@@ -1597,9 +1611,9 @@
                     //update board with new affected cell(s) info
                     for (let k=0; k < affectedCells.length; k++) {
                         // add entry to history
-                        let historyEntry = {'cell': affectedCells[k], 'oldVal': null, 'val': board[affectedCells[k]].val};
+                        let historyEntry = {'cell': affectedCells[k], 'error': false, 'oldVal': null, 'val': board[affectedCells[k]].val};
                         history.push(historyEntry);
-                        log(history);
+                        // log(history);
 
                         updateUIBoardCell(affectedCells[k]);
                     }
@@ -1668,6 +1682,7 @@
         var keyboardNumberInput = function($input, id) {
             let val = parseInt($input.val());
             let oldVal = board[id].val;
+            let cellError = false;
 
             if (editingCandidates) {
                 toggleCandidateOnCell(val, id);
@@ -1676,36 +1691,13 @@
                 return;
             }
 
-            //log(id+": "+val +" entered.");
+            // log(id+": "+val +" entered.");
 
             let candidates = getNullCandidatesList(); //[null,null....null];
 
             if (val > 0) {
-                //check that this doesn't make board incorrect
-                let temp = housesWithCell(id);
-                //for each type of house
-                for (let i=0; i < houses.length; i++) {
-
-                    if (indexInHouse(val, houses[i][temp[i]])) {
-                        //digit already in house - board incorrect with user input
-                        // log("board incorrect!");
-                        let alreadyExistingCellInHouseWithDigit = houses[i][temp[i]][indexInHouse(val, houses[i][temp[i]])];
-
-                        //this happens in candidate mode, if we highlight on ui board before entering value, and user then enters before us.
-                        if (alreadyExistingCellInHouseWithDigit == id) {
-                            continue;
-                        }
-
-                        $("#input-" + alreadyExistingCellInHouseWithDigit + ", #input-"+id)
-                            .addClass("board-cell-error");
-                        //make as incorrect in UI
-
-                        //input was incorrect, so don't update our board model
-                        // return;
-                    }
-                }
-
                 //update board cell
+                cellError = checkCellError(id, val, true);
                 setBoardCell(id, val);
                 visualEliminationOfCandidates();
 
@@ -1733,16 +1725,16 @@
                     addCandidateBackToCells(id, oldVal);
                 }
 
-                //remove all errors as soon as they fix one - TODO just remove fixed errors
+                //remove errors as soon as they clear one
                 if ($("#input-"+id).hasClass("board-cell-error")) {
-                    $boardInputs.removeClass("board-cell-error");
+                    cellError = checkCellError(id, oldVal, false);
                 }
             }
 
             // add entry to history
-            let historyEntry = {'cell': id, 'oldVal': oldVal, 'val': val};
+            let historyEntry = {'cell': id, 'error': cellError, 'oldVal': oldVal, 'val': val};
             history.push(historyEntry);
-            log(history);
+            // log(history);
 
             if (typeof opts.boardUpdatedFn === "function") {
                 opts.boardUpdatedFn({cause: "user input", cellsUpdated: [id]});
@@ -2003,8 +1995,9 @@
         $boardInputs.on("keyup", function(e) {
             let $this = $(this);
             let id = parseInt($this.attr("id").replace("input-",""));
-            //allow keyboard movements
-            if (e.keyCode < 48) {
+            //allow keyboard movements - treat backspace and delete as ''
+            if (e.keyCode != 8 && e.keyCode != 46 && e.keyCode < 48) {
+                // log('keycode: '+e.keyCode);
                 keyboardMoveBoardFocus(id, e.keyCode);
             } else {
                 let $inputs = $('#sudoku').find('input').not(':disabled');
@@ -2012,7 +2005,7 @@
                 if ($thisInput.val() < 1 || $thisInput.val() > 9) {
                     $thisInput.val('');
                 }
-                $boardInputs.removeClass("board-cell-error");
+                // $boardInputs.removeClass("board-cell-error");
                 keyboardNumberInput($thisInput, id);
                 updateUIBoard(true);
                 // check if finished and valid puzzle solution
