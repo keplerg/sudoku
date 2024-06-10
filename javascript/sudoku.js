@@ -343,6 +343,11 @@
          * -----------------------------------------------------------------*/
          var updateUIBoard = function(paintNew) {
             // log("updateUIBoard");
+            if (boardError) {
+                $('#board-error').html('ERROR');
+            } else {
+                $('#board-error').html('');
+            }
             $boardInputs
                 .removeClass("highlight-val")
                 .removeAttr("disabled")
@@ -639,8 +644,10 @@
          * -----------------------------------------------------------------*/
         var undo = function() {
             let entry = history.pop();
+            let cellError = false;
             if (! entry) {
                 // log('no undo history left');
+                resetBoardVariables();
                 return;
             }
             // log(entry);
@@ -650,10 +657,16 @@
                 addCandidateBackToCells(entry.cell, entry.val);
             }
             if (entry.error) {
-                checkCellError(entry.cell, entry.oldVal, true);
+                cellError = checkCellError(entry.cell, entry.oldVal, true);
             } else {
-                checkCellError(entry.cell, entry.val, false);
+                cellError = checkCellError(entry.cell, entry.val, false);
             }
+
+            boardError = false;
+            if ($boardInputs.hasClass("board-cell-error")) {
+                boardError = true;
+            }
+            // log('boardError now '+boardError);
             updateUIBoard(true);
         };
 
@@ -1717,19 +1730,24 @@
                     }
                 }
             } else {
-                boardError = false; //reset, in case they fixed board - otherwise, we'll find the error again
                 val = null; // in case isNaN(val)
                 //add back candidate to cells
                 if (oldVal > 0) {
+                    //remove errors as soon as they clear one
+                    if ($("#input-"+id).hasClass("board-cell-error")) {
+                        cellError = checkCellError(id, oldVal, false);
+                    }
                     setBoardCell(id, null);
                     addCandidateBackToCells(id, oldVal);
                 }
 
-                //remove errors as soon as they clear one
-                if ($("#input-"+id).hasClass("board-cell-error")) {
-                    cellError = checkCellError(id, oldVal, false);
-                }
             }
+
+            boardError = false;
+            if ($boardInputs.hasClass("board-cell-error")) {
+                boardError = true;
+            }
+            // log('boardError now '+boardError);
 
             // add entry to history
             let historyEntry = {'cell': id, 'error': cellError, 'oldVal': oldVal, 'val': val};
@@ -1741,6 +1759,7 @@
             }
 
             onlyUpdatedCandidates = false;
+            updateUIBoard(true);
         };
 
 
@@ -2007,7 +2026,6 @@
                 }
                 // $boardInputs.removeClass("board-cell-error");
                 keyboardNumberInput($thisInput, id);
-                updateUIBoard(true);
                 // check if finished and valid puzzle solution
                 let done = true;
                 for (let i = 0; i < $inputs.length; i++) {

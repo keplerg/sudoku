@@ -14,7 +14,7 @@
         <h1>Sudoku</h1>
 
         <!--show candidates toggle-->
-        <label for="toggleCandidates">Show candidates </label><input id="toggleCandidates" class="js-candidate-toggle" type="checkbox"/>
+        <label for="toggleCandidates">Show candidates <input id="toggleCandidates" class="js-candidate-toggle" type="checkbox"/></label>
         <!--analyze board btn-->
         <button type="button" class="js-analyze-board-btn">Analyze</button>
 
@@ -33,7 +33,12 @@
         Solve: <button type="button" class="js-solve-step-btn">One Step</button><button type="button" class="js-solve-all-btn">All</button>
         <br>
         <!--clear board btn-->
-        Board: <button type="button" class="js-reset-board-btn">Reset</button><button type="button" class="js-clear-board-btn">Clear</button><button type="button" class="js-set-board-btn">Set</button><button type="button" class="js-undo-btn">Undo</button>
+        Board:
+        <button type="button" class="js-reset-board-btn">Reset</button>
+        <button type="button" class="js-clear-board-btn">Clear</button>
+        <button type="button" class="js-set-board-btn">Set</button>
+        <button type="button" class="js-undo-btn">Undo</button>
+        <span id="board-error"></span>
     </div>
 
     <script>
