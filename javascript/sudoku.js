@@ -715,11 +715,11 @@
          *  returns index (0-9) for digit in house, false if not in house
          *  NOTE: careful evaluating returned index is IN row, as 0==false.
          * -----------------------------------------------------------------*/
-         var indexInHouse = function(digit,house) {
-             // log('indeInHouse('+digit+', '+house+')');
+         var indexInHouse = function(id,digit,house) {
+            // log('indeInHouse('+id+', '+digit+', '+house+')');
             for (let i=0; i < boardSize; i++) {
              // log(board[house[i]]+' = '+board[house[i]].val);
-                if (board[house[i]].val == digit) {
+                if (house[i] != id && board[house[i]].val == digit) {
                     return i;
                 }
             }
@@ -823,16 +823,17 @@
          *  checks if cell entry invalidates the board
          * -----------------------------------------------------------------*/
          var checkCellError = function(id, val, mark) {
+             // log('checkCellError('+id+', '+val+', '+mark+')');
             //check that this doesn't make board incorrect
             let status = $("#input-" + id).hasClass("board-cell-error");
             let temp = housesWithCell(id);
             //for each type of house
             for (let i=0; i < houses.length; i++) {
-
-                if (indexInHouse(val, houses[i][temp[i]]) !== false) {
+                if (indexInHouse(id, val, houses[i][temp[i]]) !== false) {
                     //digit already in house - board incorrect with user input
                     // log("board incorrect!");
-                    let alreadyExistingCellInHouseWithDigit = houses[i][temp[i]][indexInHouse(val, houses[i][temp[i]])];
+                    let alreadyExistingCellInHouseWithDigit = houses[i][temp[i]][indexInHouse(id, val, houses[i][temp[i]])];
+                    // log('house: '+i+' exists? '+alreadyExistingCellInHouseWithDigit);
 
                     //this happens in candidate mode, if we highlight on ui board before entering value, and user then enters before us.
                     if (mark && alreadyExistingCellInHouseWithDigit == id) {
