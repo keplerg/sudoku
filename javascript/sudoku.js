@@ -1708,6 +1708,15 @@
             // log(id+": "+val +" entered.");
 
             let candidates = getNullCandidatesList(); //[null,null....null];
+            if (oldVal > 0) {
+                //remove errors as soon as they clear one
+                if ($("#input-"+id).hasClass("board-cell-error")) {
+                    cellError = checkCellError(id, oldVal, false);
+                }
+                setBoardCell(id, null);
+                //add back candidate to cells
+                addCandidateBackToCells(id, oldVal);
+            }
 
             if (val > 0) {
                 //update board cell
@@ -1732,16 +1741,6 @@
                 }
             } else {
                 val = null; // in case isNaN(val)
-                //add back candidate to cells
-                if (oldVal > 0) {
-                    //remove errors as soon as they clear one
-                    if ($("#input-"+id).hasClass("board-cell-error")) {
-                        cellError = checkCellError(id, oldVal, false);
-                    }
-                    setBoardCell(id, null);
-                    addCandidateBackToCells(id, oldVal);
-                }
-
             }
 
             boardError = false;
