@@ -52,6 +52,7 @@
                 onlyUpdatedCandidates = false,
                 gradingMode = false, //solving without updating UI
                 generatingMode = false, //silence board unsolvable errors
+                gradingAbortIfTooHard = false, //digCells: stop once puzzle exceeds requested difficulty
                 invalidCandidates = [], //used by the generateBoard function
 
 
@@ -114,22 +115,38 @@
 
         //array contains function
         var contains = function(a, obj) {
-            for (let i = 0; i < a.length; i++) {
-                if (a[i] === obj) {
-                    return true;
-                }
-            }
-            return false;
+            return a.indexOf(obj) !== -1;
+        };
+
+        // board[cell].candidates is a boardSize-slot array: index d-1 holds d, or null
+        var hasCandidate = function(candidates, digit) {
+            return candidates[digit - 1] != null;
         };
 
         var uniqueArray = function(a) {
-            let temp = {};
-            for (let i = 0; i < a.length; i++)
-                temp[a[i]] = true;
             let r = [];
-            for (let k in temp)
-                r.push(k);
+            let seen = {};
+            for (let i = 0; i < a.length; i++) {
+                let v = a[i];
+                if (!seen[v]) {
+                    seen[v] = true;
+                    r.push(v);
+                }
+            }
             return r;
+        };
+
+        var cloneBoard = function(src) {
+            let copy = new Array(src.length);
+            for (let i = 0; i < src.length; i++) {
+                let cell = src[i];
+                copy[i] = {
+                    val: cell.val,
+                    candidates: cell.candidates.slice(),
+                    title: cell.title
+                };
+            }
+            return copy;
         };
 
 
@@ -152,7 +169,7 @@
             for (let i=0; i < strategies.length; i++) {
                 let freq = usedStrategies[i];
                 if (!freq) {
-                    continue; //undefined or 0, won't effect score
+                    continue; //undefined or 0, won't affect score
                 }
                 let stratObj = strategies[i];
                 totalScore += freq * stratObj.score;
@@ -265,7 +282,7 @@
                     let title = 'Row: '+Math.floor((j/boardSize)+1)+' Column: '+((j%boardSize)+1);
                     originalBoard[j] = {
                         val: cellVal,
-                        candidates: candidates,
+                        candidates: candidates.slice(),
                         title: title
                     };
                     board[j] = {
@@ -326,12 +343,9 @@
         var buildCandidatesString = function(candidatesList) {
             let s="";
             for (let i=1; i < boardSize+1; i++) {
-                if (contains(candidatesList,i)) {
+                if (hasCandidate(candidatesList, i)) {
                     s+= "<span>"+i+"</span> ";
                 }
-                // else {
-                //     s+= "<span>&nbsp;</span> ";
-                // }
             }
             return s;
         };
@@ -367,8 +381,6 @@
                         $input.attr("disabled", true)
                     }
                     let candidates = $input.siblings(".candidates");
-                    // log(candidates);
-                    visualEliminationOfCandidates();
                     if (newVal > 0) {
                         candidates.html('');
                     } else {
@@ -437,56 +449,16 @@
          * Check if valid candidate. Used to see if we can add candidate back to cell
         -----------------------------------------------------------------*/
         var checkValidCandidate = function(cell, candidate) {
-            //for each type of house..(hor row / vert row / box)
-            let hlength = houses.length;
-            for (let i=0; i < hlength; i++) {
-
-                //for each such house
-                for (let j=0; j < boardSize; j++) {
-                    let house = houses[i][j];
-                    // only check if house contains this cell
-                    if (house.includes(cell)) {
-                        for (let k=0; k < boardSize; k++) {
-                            if (cell !== house[k] && candidate === board[house[k]].val) {
-                                return false;
-                            }
-                        }
+            let cellHouses = housesWithCell(cell);
+            for (let i=0; i < houses.length; i++) {
+                let house = houses[i][cellHouses[i]];
+                for (let k=0; k < boardSize; k++) {
+                    if (cell !== house[k] && candidate === board[house[k]].val) {
+                        return false;
                     }
                 }
             }
             return true;
-        }
-
-
-        /* addCandidateBackToCells
-        -----------------------------------------------------------------*/
-        var addCandidateBackToCells = function(cell, candidate) {
-            //for each type of house..(hor row / vert row / box)
-            let hlength = houses.length;
-
-            // need to reconstruct all candidates for cell only
-            board[cell].candidates = boardNumbers.slice(0);
-
-            for (let i=0; i < hlength; i++) {
-
-                //for each such house
-                for (let j=0; j < boardSize; j++) {
-                    let house = houses[i][j];
-                    // only check if house contains this cell
-                    if (house.includes(cell)) {
-                        for (let k=0; k < boardSize; k++) {
-                            if (house[k] != cell && originalBoard[house[k]].val === null) {
-                                if (checkValidCandidate(house[k], candidate)) {
-                                    board[house[k]].candidates[candidate-1] = candidate;
-                                }
-                                if (board[house[k]].val > 0) {
-                                    board[cell].candidates[board[house[k]].val-1] = null;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         };
 
 
@@ -644,7 +616,6 @@
          * -----------------------------------------------------------------*/
         var undo = function() {
             let entry = history.pop();
-            let cellError = false;
             if (! entry) {
                 // log('no undo history left');
                 resetBoardVariables();
@@ -652,17 +623,22 @@
             }
             // log(entry);
             setBoardCell(entry.cell, entry.oldVal);
+            // Pencil marks only shrink. Rebuild them from remaining digits so
+            // analyzeBoard/solveStep do not stall on a still-solvable grid.
+            resetCandidates(false);
             visualEliminationOfCandidates();
             if (entry.val !== null) {
-                addCandidateBackToCells(entry.cell, entry.val);
+                checkCellError(entry.cell, entry.val, false);
             }
-            if (entry.error) {
-                cellError = checkCellError(entry.cell, entry.oldVal, true);
+            if (entry.oldVal !== null) {
+                checkCellError(entry.cell, entry.oldVal, true);
             } else {
-                cellError = checkCellError(entry.cell, entry.val, false);
+                $("#input-"+entry.cell).removeClass("board-cell-error");
             }
 
             boardError = false;
+            boardFinished = false;
+            onlyUpdatedCandidates = false;
             if ($boardInputs.hasClass("board-cell-error")) {
                 boardError = true;
             }
@@ -810,7 +786,7 @@
             for (let i=0; i < house.length; i++) {
                 let cell = board[house[i]];
                 let candidates = cell.candidates;
-                if (contains(candidates, candidate)) {
+                if (hasCandidate(candidates, candidate)) {
                     t.push(house[i]);
                 }
             }
@@ -859,31 +835,6 @@
          * to determine candidates to remove.
          * -----------------------------------------------------------------*/
         function visualEliminationOfCandidates() {
-            //for each type of house..(hor row / vert row / box)
-            let hlength = houses.length;
-            for (let i=0; i < hlength; i++) {
-
-                //for each such house
-                for (let j=0; j < boardSize; j++) {
-                    let house = houses[i][j];
-                    let candidatesToRemove = numbersTaken(house);
-                    for (let k=0; k < boardSize; k++) {
-                        let cell = house[k];
-                        // let candidates = board[cell].candidates;
-                        removeCandidatesFromCell(cell, candidatesToRemove);
-                    }
-                }
-            }
-        }
-
-
-        /* visualAdditionOfCandidates
-         * --------------
-         * Only updates candidates. Goes through entire board and checks candidates by row column and box 
-         * to determine candidates to add back in. This only gets called on an undo or removal of a number
-         * from a cell.
-         * -----------------------------------------------------------------*/
-        function visualAdditionOfCandidates() {
             //for each type of house..(hor row / vert row / box)
             let hlength = houses.length;
             for (let i=0; i < hlength; i++) {
@@ -994,7 +945,7 @@
                             let cell = house[l];
                             let boardCell = board[cell];
                             //if the digit only appears as a candidate in one slot, that's where it has to go
-                            if (contains(boardCell.candidates, digit)) {
+                            if (hasCandidate(boardCell.candidates, digit)) {
                                 possibleCells.push(cell);
                                 if (possibleCells.length > 1) {
                                     break; //no we can't tell anything in this case
@@ -1030,6 +981,11 @@
          * -- returns affectedCells - the updated cell(s), or false
          * -----------------------------------------------------------------*/
         function singleCandidate() {
+            // Refresh pencil marks from the current placed digits before scanning
+            // for naked singles. Without this, candidates go stale after openSingles
+            // (or any other placement) and later strategies stall on a still-solvable board.
+            visualEliminationOfCandidates();
+
             //for each cell
             for (let i=0; i < board.length; i++) {
                 let cell = board[i];
@@ -1070,8 +1026,6 @@
          * -- returns affectedCells - the updated cell(s), or false
          * -----------------------------------------------------------------*/
         function pointingElimination() {
-            let affectedCells = false;
-
             //for each type of house..(hor row / vert row / box)
             let hlength = houses.length;
             for (let a=0; a < hlength; a++) {
@@ -1100,7 +1054,7 @@
                         for (let k=0; k < house.length; k++) {
                             let cell = house[k];
 
-                            if (contains(board[cell].candidates,digit)) {
+                            if (hasCandidate(board[cell].candidates, digit)) {
                                 let cellHouses = housesWithCell(cell);
                                 let newHouseId = (houseType ===2) ? cellHouses[0] : cellHouses[2];
                                 let newHouseTwoId = (houseType ===2) ? cellHouses[1] : cellHouses[2];
@@ -1518,19 +1472,11 @@
          *        calls itself with i++
          *  returns canContinue true|false - only relevant for solveMode "all"
          * -----------------------------------------------------------------*/
-        var nrSolveLoops = 0;
-        var affectedCells = false;
-
         var solveFn = function(i) {
-            // log('solceFn('+i+')');
-            // log('finished: '+boardFinished);
+            let affectedCells = false;
             if (boardFinished) {
                 if (!gradingMode) {
                     updateUIBoard(false);
-                    //log("finished!");
-                    //log("usedStrats:")
-                    //log(usedStrategies);
-
                     //callback
                     if (typeof opts.boardFinishedFn === "function") {
                         opts.boardFinishedFn({
@@ -1563,7 +1509,14 @@
                 }
             }
 
-            nrSolveLoops++;
+            if (gradingAbortIfTooHard) {
+                let trial = usedStrategies.slice();
+                trial[i] = (trial[i] || 0) + 1;
+                if (!easyEnough(calcBoardDifficulty(trial))) {
+                    return false;
+                }
+            }
+
             let strat = strategies[i].fn;
             //log("use strat nr:" +i);
             affectedCells = strat();
@@ -1572,7 +1525,7 @@
                 if (strategies.length > i+1) {
                     return solveFn(i+1);
                 } else {
-                    if (typeof opts.boardErrorFn === "function" && !generatingMode) {
+                    if (typeof opts.boardErrorFn === "function" && !generatingMode && !gradingMode) {
                         opts.boardErrorFn({msg: "no more strategies"});
                     }
 
@@ -1583,15 +1536,9 @@
                 }
 
             } else if (boardError) {
-                if (typeof opts.boardErrorFn === "function") {
+                if (typeof opts.boardErrorFn === "function" && !gradingMode) {
                     opts.boardErrorFn({msg: "Board incorrect"});
                 }
-
-                /*
-                if (solveMode === SOLVE_MODE_ALL) {
-                    updateUIBoard(false); //show user current state of board... how much they need to reset for it to work again.
-                }
-                */
 
                 return false; //we can't do no more solving
 
@@ -1707,22 +1654,18 @@
 
             // log(id+": "+val +" entered.");
 
-            let candidates = getNullCandidatesList(); //[null,null....null];
             if (oldVal > 0) {
                 //remove errors as soon as they clear one
                 if ($("#input-"+id).hasClass("board-cell-error")) {
                     cellError = checkCellError(id, oldVal, false);
                 }
                 setBoardCell(id, null);
-                //add back candidate to cells
-                addCandidateBackToCells(id, oldVal);
             }
 
             if (val > 0) {
                 //update board cell
                 cellError = checkCellError(id, val, true);
                 setBoardCell(id, val);
-                visualEliminationOfCandidates();
 
                 //check if that finished board
                 if (isBoardFinished()) {
@@ -1742,6 +1685,9 @@
             } else {
                 val = null; // in case isNaN(val)
             }
+
+            resetCandidates(false);
+            visualEliminationOfCandidates();
 
             boardError = false;
             if ($boardInputs.hasClass("board-cell-error")) {
@@ -1774,17 +1720,30 @@
           * solves a copy of the current board(without updating the UI),
           * reports back: error|finished, usedStrategies and difficulty level and score
           * -----------------------------------------------------------------*/
-         var analyzeBoard = function() {
+         var analyzeBoard = function(analyzeOpts) {
+            analyzeOpts = analyzeOpts || {};
+            let liveSolveMode = solveMode;
             gradingMode = true;
             solveMode = SOLVE_MODE_ALL;
-            let usedStrategiesClone = JSON.parse(JSON.stringify(usedStrategies));
-            let boardClone = JSON.parse(JSON.stringify(board));
-            let canContinue = true;
+            gradingAbortIfTooHard = !!analyzeOpts.abortIfTooHard;
 
+            let usedStrategiesClone = usedStrategies.slice();
+            let liveBoard = board;
+            let liveOnlyUpdated = onlyUpdatedCandidates;
+            board = cloneBoard(liveBoard);
+            usedStrategies = [];
+            boardFinished = false;
+            boardError = false;
+            onlyUpdatedCandidates = false;
+
+            // Grade the digits, not whatever pencil marks play/undo left behind.
+            // Those marks only shrink, so a stale list makes a solvable board
+            // look like "no more strategies".
+            resetCandidates(false);
             visualEliminationOfCandidates();
+            let canContinue = true;
             while (canContinue) {
-                let startStrat = onlyUpdatedCandidates ? 2 : 0;
-                canContinue = solveFn(startStrat);
+                canContinue = solveFn(0);
             }
 
             let data = {};
@@ -1811,11 +1770,13 @@
                 }
             }
 
-            //restore everything to state (before solving)
+            // restore the caller's board; solve only mutated the clone
+            board = liveBoard;
             resetBoardVariables();
-            usedStrategies  = usedStrategiesClone;
-            board = boardClone;
-            visualEliminationOfCandidates();
+            usedStrategies = usedStrategiesClone;
+            onlyUpdatedCandidates = liveOnlyUpdated;
+            solveMode = liveSolveMode;
+            gradingAbortIfTooHard = false;
 
             return data;
         };
@@ -1897,9 +1858,70 @@
             }
         };
 
+        // Remove a given and update pencil marks only in its three houses.
+        var uncoverCell = function(cellIndex, val) {
+            setBoardCell(cellIndex, null);
+            board[cellIndex].candidates = boardNumbers.slice();
+            let cellHouses = housesWithCell(cellIndex);
+            for (let i=0; i < houses.length; i++) {
+                let house = houses[i][cellHouses[i]];
+                for (let k=0; k < boardSize; k++) {
+                    let peer = house[k];
+                    if (peer === cellIndex) {
+                        continue;
+                    }
+                    if (board[peer].val != null) {
+                        board[cellIndex].candidates[board[peer].val - 1] = null;
+                    } else if (checkValidCandidate(peer, val)) {
+                        board[peer].candidates[val - 1] = val;
+                    }
+                }
+            }
+        };
+
+        // Restore a given that we decided not to dig.
+        var coverCell = function(cellIndex, val) {
+            setBoardCell(cellIndex, val);
+            let cellHouses = housesWithCell(cellIndex);
+            for (let i=0; i < houses.length; i++) {
+                let house = houses[i][cellHouses[i]];
+                for (let k=0; k < boardSize; k++) {
+                    let peer = house[k];
+                    if (peer !== cellIndex && board[peer].val == null) {
+                        board[peer].candidates[val - 1] = null;
+                    }
+                }
+            }
+        };
+
+        var emptyCellHasNoCandidates = function() {
+            let cellCount = boardSize * boardSize;
+            for (let i=0; i < cellCount; i++) {
+                if (board[i].val === null && candidatesLeft(i).length === 0) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        var cellIsNakedSingle = function(cellIndex) {
+            return candidatesLeft(cellIndex).length === 1;
+        };
+
+        var cellIsHiddenSingle = function(cellIndex, digit) {
+            let cellHouses = housesWithCell(cellIndex);
+            for (let i=0; i < houses.length; i++) {
+                if (cellsForCandidate(digit, houses[i][cellHouses[i]]).length === 1) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         var digCells = function() {
+            let cellCount = boardSize * boardSize;
             let cells = [];
-            let given = boardSize*boardSize;
+            let given = cellCount;
             let minGiven = 17;
             if (boardSize < 9) {
                 minGiven = 4
@@ -1908,28 +1930,45 @@
             } else if (difficulty === DIFFICULTY_MEDIUM) {
                 minGiven = 30;
             }
-            for (let i=0; i < boardSize*boardSize; i++) {
+            for (let i=0; i < cellCount; i++) {
                 cells.push(i);
             }
+            for (let i = cells.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                let tmp = cells[i];
+                cells[i] = cells[j];
+                cells[j] = tmp;
+            }
 
-            while (cells.length > 0 && given > minGiven) {
-                let randIndex = Math.round ( Math.random() * (cells.length - 1));
-                let cellIndex = cells.splice(randIndex,1);
+            for (let n=0; n < cells.length && given > minGiven; n++) {
+                let cellIndex = cells[n];
                 let val = board[cellIndex].val;
-
-                // remove value from this cell
-                setBoardCell(cellIndex, null);
-                // reset candidates, only in model.
-                resetCandidates(false);
-
-                let data = analyzeBoard();
-                if (data.finished !== false && easyEnough(data)) {
-                    given--;
-                } else {
-                    // reset - don't dig this cell
-                    setBoardCell(cellIndex, val);
+                if (val == null) {
+                    continue;
                 }
 
+                uncoverCell(cellIndex, val);
+
+                if (emptyCellHasNoCandidates()) {
+                    coverCell(cellIndex, val);
+                    continue;
+                }
+
+                // Forced cells refill themselves on the first easy strategies.
+                // Hidden singles use visualElimination (MEDIUM); don't skip that check on EASY.
+                let forced = cellIsNakedSingle(cellIndex) ||
+                    (difficulty !== DIFFICULTY_EASY && cellIsHiddenSingle(cellIndex, val));
+                if (forced) {
+                    given--;
+                    continue;
+                }
+
+                let data = analyzeBoard({ abortIfTooHard: true });
+                if (data.finished === true && easyEnough(data)) {
+                    given--;
+                } else {
+                    coverCell(cellIndex, val);
+                }
             }
         };
 
@@ -1953,19 +1992,18 @@
             // (if you asked for "hard", you most likely get "medium")
             generateBoardAnswerRecursively(0);
 
-            // attempt one - save the answer, and try digging multiple times.
-            let boardAnswer = board.slice();
+            // Deep-copy the completed grid. board.slice() would share cell objects
+            // with digCells(), so a "restore" could not actually undo a dig.
+            let boardAnswer = cloneBoard(board);
 
             let boardTooEasy = true;
 
-            // log(board);
             while (boardTooEasy) {
+                board = cloneBoard(boardAnswer);
                 digCells();
                 let data = analyzeBoard();
                 if (hardEnough(data)) {
                     boardTooEasy = false;
-                } else {
-                    board = boardAnswer;
                 }
             }
             visualEliminationOfCandidates();
@@ -2052,7 +2090,7 @@
         var solveAll = function() {
             solveMode = SOLVE_MODE_ALL;
             let canContinue = true;
-            let boardClone = JSON.parse(JSON.stringify(board));
+            let boardClone = cloneBoard(board);
 
             visualEliminationOfCandidates();
             while (canContinue) {
@@ -2060,7 +2098,7 @@
                 canContinue = solveFn(startStrat);
             }
             if (! boardFinished) {
-                alert('Board cannot be solved!');
+                alert('Board cannot be solved! '+canContinue);
                 //restore everything to state (before solving)
                 // resetBoardVariables();
                 board = boardClone;
